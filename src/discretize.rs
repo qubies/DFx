@@ -148,9 +148,29 @@ impl Discretizer {
             .collect::<Vec<Bucket>>();
         let num_flags = 64 / (bucket_size - 1);
 
-        // this is bad code... fix it later
-        // the problem is that when the division is even, the addition is not needed, but this
-        // feels over complicated
+        return Discretizer {
+            size: maxes.len(),
+            buckets: b,
+            bucket_size,
+            num_flags,
+            num_ints: (maxes.len() / num_flags as usize
+                + ((maxes.len() % num_flags as usize != 0) as usize * 1))
+                as usize,
+        };
+    }
+
+    // this is a discretizer that reads from an array rather than a file to get its max.min
+    pub fn Discretizer_From_Arrays(maxes: &[f32], mins: &[f32], bucket_size: usize) -> Discretizer {
+        if maxes.len() != mins.len() {
+            panic!("Maxes and mins unbalanced size.")
+        }
+        let b = maxes
+            .iter()
+            .zip(mins)
+            .map(|(max, min)| Bucket::New(max, min, bucket_size))
+            .collect::<Vec<Bucket>>();
+        let num_flags = 64 / (bucket_size - 1);
+
         return Discretizer {
             size: maxes.len(),
             buckets: b,
@@ -206,4 +226,58 @@ pub fn Maxes_and_Mins_From_File<P: AsRef<Path>>(filename: P) -> Result<mxmn, Box
 
     let target: mxmn = serde_json::from_reader(reader)?;
     return Ok(target);
+}
+
+extern crate test;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::Rng;
+    use test::Bencher;
+
+    #[test]
+    fn dfx_test_discretizer() {
+        let mut disc =
+            Discretizer::Discretizer_From_Arrays(&vec![1.0, 1.0, 1.0], &vec![-1.0, -1.0, -1.0], 2);
+        let a = vec![1.0, 0.2, 3.0];
+        let b = vec![1.0, -0.9999, 0.000001];
+
+        assert_eq!(disc.Discretize(&a)[0], 7);
+        assert_eq!(disc.Discretize(&b)[0], 5);
+
+        disc = Discretizer::Discretizer_From_Arrays(&[1.0, 1.0, 1.0], &[-1.0, -1.0, -1.0], 3);
+        assert_eq!(disc.Discretize(&a)[0], 55);
+        assert_eq!(disc.Discretize(&b)[0], 19);
+
+        disc = Discretizer::Discretizer_From_Arrays(&[1.0, 1.0, 1.0], &[-1.0, -1.0, -1.0], 4);
+        assert_eq!(disc.Discretize(&a)[0], 479);
+        assert_eq!(disc.Discretize(&b)[0], 199);
+
+        // check maxes
+        let v = vec![1.0 as f32; 128];
+        let q = vec![-1.0 as f32; 128];
+        disc = Discretizer::Discretizer_From_Arrays(&v, &q, 5);
+        assert_eq!(disc.Discretize(&v)[0], 18446744073709551615); // max val
+
+        disc = Discretizer::Discretizer_From_Arrays(&[1.0, 1.0, 1.0], &[-1.0, -1.0, -1.0], 64);
+        assert_eq!(disc.Discretize(&a)[0], 9223372036854775807);
+        assert_eq!(disc.Discretize(&a)[2], 9223372036854775807);
+        assert_eq!(disc.Discretize(&a).len(), 3);
+    }
+
+    fn random_vec(size: usize) -> Vec<f32> {
+        let mut rng = rand::thread_rng();
+        let mut numbers = Vec::<f32>::with_capacity(512);
+        for _ in 0..size {
+            numbers.push(rng.gen::<f32>());
+        }
+        numbers
+    }
+
+    #[bench]
+    fn dfx_single_discretizer(b: &mut Bencher) {
+        let disc = Discretizer::New("mxmn.json".to_string(), 2);
+        let a = random_vec(512);
+        b.iter(|| disc.Discretize(&a));
+    }
 }
