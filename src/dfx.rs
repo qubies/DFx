@@ -45,8 +45,6 @@ fn vector_inserter(
             batch_vectors.get_mut(&x.vec).unwrap().push(x);
         }
 
-        // I am not sure if is empty will fire on the last insert here...
-        // The intent is that if there is nothing else to do, to the insert.
         if (batch.len() + batch_vectors.len() > INSERT_BATCH_SIZE)
             || (r.is_empty() && batch.len() + batch_vectors.len() > 0)
         {
@@ -216,7 +214,7 @@ impl Vec_Search {
         results
     }
 
-    pub fn Query(&self, v_in: Vec<f32>, len: usize, k: usize, boost: f32) -> Vec<pgres::result> {
+    pub fn Query(&self, v_in: Vec<f32>, k: usize) -> Vec<pgres::result> {
         let total_q_time = Instant::now();
         let encoded = self.Encode(&v_in);
         let mut results = self.KNN(encoded, k);

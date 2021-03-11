@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use sql_builder::quote;
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::iter;
 use std::sync::{Arc, Mutex};
 use tokio_postgres::types::ToSql;
 
@@ -84,7 +83,7 @@ impl PG_Helper {
     }
 
     fn get_client(&self) -> postgres::Client {
-        let mut client = Client::connect(
+        let client = Client::connect(
             "host=172.17.0.1 user=postgres password=OMG_Vectors_Vectors_Vectors!",
             NoTls,
         )
@@ -120,17 +119,6 @@ impl PG_Helper {
             .unwrap();
     }
 
-    pub fn insert_phrase(&mut self, vid: i32, phrase: String, class: i32) {
-        {
-            let q = format!(
-                "INSERT INTO Phrases (vid, phrase, class) VALUES ({}, $1, {});",
-                vid, class
-            );
-            let mut client = self.get_client();
-            client.execute(&q[..], &[&phrase]).unwrap();
-        }
-    }
-
     pub fn insert_phrases(&self, inputs: &Vec<Add_Request>) {
         let mut client = self.get_client();
         let mut strings = Vec::new();
@@ -144,24 +132,6 @@ impl PG_Helper {
         );
 
         client.execute(&q[..], &[]).unwrap();
-    }
-
-    pub fn insert_vector(&self, v: &Vec<u64>, phrase_len: u64) -> i32 {
-        let vec_string = vec_to_string(v);
-
-        let q = format!( "INSERT INTO Vectors  (phrase_len, id, Data) VALUES ({}, DEFAULT, '{}') RETURNING id as ID;",
-            phrase_len,
-        vec_string,
-        );
-
-        let mut client = self.get_client();
-        match client.query_one(&q[..], &[]) {
-            Ok(id) => id.get::<'_, _, i32>("id"),
-            Err(_e) => {
-                let q = format!("SELECT id from Vectors WHERE data = '{}';", vec_string,);
-                client.query_one(&q[..], &[]).unwrap().get("id")
-            }
-        }
     }
 
     pub fn insert_vectors(&self, inputs: &mut Vec<Add_Request>) {

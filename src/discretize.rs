@@ -160,6 +160,7 @@ impl Discretizer {
     }
 
     // this is a discretizer that reads from an array rather than a file to get its max.min
+    #[allow(dead_code)]
     pub fn Discretizer_From_Arrays(maxes: &[f32], mins: &[f32], bucket_size: usize) -> Discretizer {
         if maxes.len() != mins.len() {
             panic!("Maxes and mins unbalanced size.")

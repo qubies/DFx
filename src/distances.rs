@@ -1,5 +1,3 @@
-use std::num::Wrapping;
-
 #[cfg_attr(target_arch = "x86_64", target_feature(enable = "popcnt"))]
 pub unsafe fn ones(x: u64) -> u32 {
     return x.count_ones();
@@ -23,15 +21,6 @@ mod tests {
     use rand::Rng;
     use test::Bencher;
 
-    fn random_vec() -> Vec<f32> {
-        let mut rng = rand::thread_rng();
-        let mut numbers = Vec::<f32>::with_capacity(512);
-        for _ in 0..512 {
-            numbers.push(rng.gen::<f32>());
-        }
-        numbers
-    }
-
     fn random_discete_vec(buckets: usize, dim: usize) -> Vec<u64> {
         let mut rng = rand::thread_rng();
         let cap = (buckets - 1) * dim / 64 + 1;
@@ -51,6 +40,7 @@ mod tests {
         }
     }
 
+    #[test]
     fn dfx_test_distance() {
         unsafe {
             assert_eq!(distance(&18446744073709551615, &18446744073709551615), 0);

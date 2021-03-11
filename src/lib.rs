@@ -15,32 +15,20 @@ mod pgres;
 pub struct Vector_Search_Server {
     vs: dfx::Vec_Search,
     search_limit: usize,
-    length_boost: f32,
 }
 
 #[pymethods]
 impl Vector_Search_Server {
     #[new]
-    fn new(num_buckets: usize, search_limit: usize, length_boost: f32, mode: String) -> Self {
+    fn new(num_buckets: usize, search_limit: usize, mode: String) -> Self {
         Vector_Search_Server {
             vs: dfx::Vec_Search::New(num_buckets, mode),
             search_limit,
-            length_boost,
         }
     }
-    fn Paraphrase(
-        &self,
-        _py: Python,
-        embedding_in: Vec<f32>,
-        phrase_len: usize,
-    ) -> PyResult<Vec<(u32, String)>> {
+    fn Paraphrase(&self, _py: Python, embedding_in: Vec<f32>) -> PyResult<Vec<(u32, String)>> {
         let mut paraphrases = Vec::new();
-        for result in self.vs.Query(
-            embedding_in,
-            phrase_len,
-            self.search_limit,
-            self.length_boost,
-        ) {
+        for result in self.vs.Query(embedding_in, self.search_limit) {
             for phrase in result.phrases {
                 paraphrases.push((result.score, phrase.phrase));
             }
