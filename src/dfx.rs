@@ -5,6 +5,7 @@ use super::distances;
 use super::pgres;
 
 use crossbeam::crossbeam_channel::bounded;
+use num_cpus;
 use num_format::{Locale, ToFormattedString};
 use std::collections::HashMap;
 use std::mem;
@@ -12,8 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use threadpool::ThreadPool;
 
-const NUM_WORKERS: usize = 14;
-const CHANNEL_BUFFER: usize = NUM_WORKERS * 20;
+const CHANNEL_BUFFER: usize = 16 * 20;
 const INSERT_BATCH_SIZE: usize = 1000;
 
 fn vector_inserter(
@@ -96,6 +96,7 @@ pub struct Vec_Search {
     search_vectors: Arc<Vec<pgres::Vector_Data>>,
     partition_size: usize,
     remainder: usize,
+    num_workers: usize,
 }
 
 use deepsize::DeepSizeOf;
@@ -104,11 +105,12 @@ impl Vec_Search {
     pub fn New(bucket_count: usize, mode: String) -> Vec_Search {
         let disc = Discretizer::New("mxmn.json".to_string(), bucket_count as usize);
         let mut pg_helper = pgres::PG_Helper::New();
+        let num_workers = num_cpus::get();
 
         let (vector_insert_send, vector_insert_read) = bounded(CHANNEL_BUFFER);
         let (phrase_insert_send, phrase_insert_read) = bounded(CHANNEL_BUFFER);
         let add_pool = ThreadPool::new(2);
-        let query_pool = ThreadPool::new(NUM_WORKERS);
+        let query_pool = ThreadPool::new(num_workers);
 
         // build the query bundler....
         let partition_size;
@@ -138,8 +140,8 @@ impl Vec_Search {
             let old_vectors = pg_helper.Get_Vecs();
             drop(pg_helper);
             pg_helper = pgres::PG_Helper::New();
-            partition_size = old_vectors.len() / NUM_WORKERS;
-            remainder = old_vectors.len() - NUM_WORKERS * partition_size;
+            partition_size = old_vectors.len() / num_workers;
+            remainder = old_vectors.len() - num_workers * partition_size;
             search_vectors = Arc::new(old_vectors);
             println!(
                 "Loaded {} Vectors for Querying in {:.3} seconds, of size {} bytes",
@@ -161,6 +163,7 @@ impl Vec_Search {
             search_vectors,
             partition_size,
             remainder,
+            num_workers,
         };
     }
 
@@ -187,9 +190,9 @@ impl Vec_Search {
     pub fn KNN(&self, v_in: Vec<u64>, k: usize) -> Vec<pgres::result> {
         let result_batch = Arc::new(Mutex::new(Vec::new()));
 
-        for i in 0..NUM_WORKERS {
+        for i in 0..self.num_workers {
             let mut end = self.partition_size * (i + 1);
-            if i == NUM_WORKERS - 1 {
+            if i == self.num_workers - 1 {
                 end += self.remainder;
             }
             let encoded_clone = v_in.clone();
